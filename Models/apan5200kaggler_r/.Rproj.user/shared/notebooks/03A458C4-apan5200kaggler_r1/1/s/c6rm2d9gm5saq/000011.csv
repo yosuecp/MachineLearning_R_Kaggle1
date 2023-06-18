@@ -1,0 +1,4 @@
+"0","dat$time_sig_cat<- character(length= nrow (dat))"
+"0","dat$time_sig_cat[dat$time_signature==4]<-""Four"""
+"0","dat$time_sig_cat[dat$time_signature==3]<-""Three"""
+"0","dat$time_sig_cat[dat$time_signature %in% c(0,1,5)]<-""Other"""

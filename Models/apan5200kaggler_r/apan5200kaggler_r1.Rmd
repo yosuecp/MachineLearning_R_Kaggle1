@@ -1,0 +1,164 @@
+---
+title: "apan5200kaggle1"
+author: "Yosue Canaviri"
+date: "2023-03-09"
+output: html_document
+---
+
+```{r}
+library(tidyverse)
+library(dplyr)
+
+```
+
+```{r}
+dat <-read.csv("analysisData.csv") # Training set
+test <-read.csv("scoringData.csv") # Testing Set
+```
+
+Saving clean data:
+```{r}
+clean_dat <-read.csv("analysisData.csv") # Training set
+clean_test <-read.csv("scoringData.csv") # Testing Set
+```
+__What is track_duration__ Miliseconds
+```{r}
+summary(dat$track_duration)
+```
+Converting time to minutes.
+```{r}
+summary(dat$track_duration/(1000*60))
+```
+
+Mutating data to minutes:
+```{r}
+dat<- dat%>%mutate(track_minutes=track_duration/(1000*60))
+```
+
+### Any modifications made on the _training_ set should be applied in the way to the _testing_ set:
+
+Mutating data to minutes:
+```{r}
+test<- test%>%mutate(track_minutes=track_duration/(1000*60))
+```
+
+### Looking at the _track_explicit_: Looking at the association betweeen an input(track_explicit) and the output(rating)
+
+```{r}
+dat%>% group_by(track_explicit)%>%count()
+```
+```{r}
+dat%>% group_by(track_explicit)%>%summarise(mean(rating))
+```
+
+Explore the outcomes:
+```{r}
+summary(dat$rating)
+```
+
+Explore negative ratings:
+
+```{r}
+View(dat[dat$rating<0,])
+```
+
+Converting the negative _ratings_ to zero ratings:
+```{r}
+dat$rating<-pmax(0,dat$rating)
+```
+
+Let's examine the _time_signature_
+```{r}
+dat$time_signature[1:10]
+unique(dat$time_signature)
+```
+
+```{r}
+dat%>% group_by(time_signature)%>%count()
+```
+
+Now let's look at the _time_signature_ of the test data: 
+```{r}
+test%>% group_by(time_signature)%>%count()
+```
+
+There are not 0 tempo, in comparison of 2 in the train data(dat)
+
+
+__What happens if the testing data has a categorical level that is not in the training data?__
+Linear regression model creates indicator/inary/dummy variables for the levels of a categorical input. These are relative toa base case.
+
+You will get an error/warning that says "new levels" if the testing set has categories not in the training set.
+
+__How should we handle this problem?__
+We could aggregate the categories
+```{r}
+dat$time_sig_cat<- character(length= nrow (dat))
+dat$time_sig_cat[dat$time_signature==4]<-"Four"
+dat$time_sig_cat[dat$time_signature==3]<-"Three"
+dat$time_sig_cat[dat$time_signature %in% c(0,1,5)]<-"Other"
+```
+
+```{r}
+dat$time_sig_cat[1:10]
+```
+Exploring unique _key_ __MAKE IT CATEGORICAL AS WE DID IN TIME SIGNATURE__
+```{r}
+sort(unique(dat$key))
+```
+
+
+Exploring _mode_
+
+```{r}
+dat%>% group_by(mode)%>% count()
+```
+
+
+### DO NOT USE FREE TEXT VARIABLES _genre_ , _performer_ (artist) , _song_ (song name). also _id_
+
+
+## New Function: grep(): This is used for finding patterns in text
+
+Which performers have the word "The" in it?
+
+```{r}
+
+w <-grep(pattern="The", x=dat$performer)
+```
+
+```{r}
+mean(dat$rating[w])
+mean(dat$rating[-w])
+```
+
+FIND: Lower rating for bands with "The"
+
+Looking at "easy listening" in _genre_
+```{r}
+w2<- grep(pattern="easy listening",x=dat$genre)
+
+mean(dat$rating[w2])
+mean(dat$rating[-w2])
+```
+
+FIND: Lower rating for bands genre "easy listening"
+
+Look at slides for firs tsubmission
+```{r}
+
+songs <-read.csv("analysisData.csv")
+scoringData <-read.csv("scoringData.csv")
+
+model=lm(rating~tempo+time_signature,songs)
+pred=predict(model,newdata=scoringData)
+```
+
+```{r}
+submissionFile = data.frame (id = scoringData$id , rating = pred)
+write.csv( submissionFile , 'sample_submission', row.names =F)
+```
+
+```{r}
+View(submissionFile[1:20,])
+```

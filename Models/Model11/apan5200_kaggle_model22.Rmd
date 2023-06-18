@@ -1,0 +1,399 @@
+---
+title: "apan5200kaggle1"
+author: "Yosue Canaviri"
+date: "2023-03-09"
+output: html_document
+---
+
+```{r}
+library(tidyverse)
+library(dplyr)
+library(tidyr)
+library(caret)
+library(randomForest)
+library(rpart)
+library(rpart.plot)
+library(doParallel)
+library(foreach)
+library(writexl)
+library(stringr)
+library(caTools)
+library(ranger)
+library(doParallel)
+library(ggplot2)
+library(tidytext)
+```
+
+```{r}
+dat <-read.csv("analysisData.csv") # Training set
+test <-read.csv("scoringData.csv") # Testing Set
+```
+
+```{r}
+#Exploring the trends 
+ggplot(test1, aes(x = tempo, y = rating)) + 
+  geom_point(alpha = 0.3, aes(color = rating)) +
+  scale_color_gradient(low = "blue", high = "red") 
+  
+```
+```{r}
+tidy_df <- test %>%
+  unnest_tokens(word, song)
+
+# count the frequency of each word and arrange in descending order
+word_counts <- tidy_df %>%
+  count(word, sort = TRUE)
+
+# print the top 20 most common words
+head(word_counts, 25)
+```
+
+```{r}
+#Filter lower than 0 rating
+dat <- dat %>%
+  filter(rating >= 0)
+
+
+#Creating track_minutes
+dat<- dat%>%mutate(track_minutes=track_duration/(1000*60))
+
+
+dat$time_sig_cat<- character(length= nrow (dat))
+dat$time_sig_cat[dat$time_signature==4]<-"Four"
+dat$time_sig_cat[dat$time_signature==3]<-"Three"
+dat$time_sig_cat[dat$time_signature %in% c(0,1,5)]<-"Other"
+
+dat$key_cat<- character(length= nrow (dat))
+dat$key_cat[dat$key==0]<-"Zero"
+dat$key_cat[dat$key==1]<-"One"
+dat$key_cat[dat$key==2]<-"Two"
+dat$key_cat[dat$key==3]<-"Three"
+dat$key_cat[dat$key==4]<-"Four"
+dat$key_cat[dat$key==5]<-"Five"
+dat$key_cat[dat$key==6]<-"Six"
+dat$key_cat[dat$key==7]<-"Seven"
+dat$key_cat[dat$key==8]<-"Eight"
+dat$key_cat[dat$key==9]<-"Nine"
+dat$key_cat[dat$key==10]<-"Ten"
+dat$key_cat[dat$key==11]<-"Eleven"
+
+#Taking the numbers of words in each song
+dat$song1 <- gsub("\\([^()]*\\)", "", dat$song)
+dat$song_counter <- str_count(dat$song1, "\\s+") + 1
+#Transforming the count to characters to make them categorical
+dat$song_count[dat$song_counter==1]<-"One"
+dat$song_count[dat$song_counter==2]<-"Two"
+dat$song_count[dat$song_counter==3]<-"Three"
+dat$song_count[dat$song_counter==4]<-"Four"
+dat$song_count[dat$song_counter==5]<-"Five"
+dat$song_count[dat$song_counter==6]<-"Six"
+dat$song_count[dat$song_counter==7]<-"Seven"
+dat$song_count[dat$song_counter >=8]<-"Eight Plus"
+
+#Taking the numbers of words in each performer
+dat$performer_counter <- str_count(dat$performer, "\\s+") + 1
+#Transforming the count to characters to make them categorical
+dat$performer_count[dat$performer_counter==1]<-"One"
+dat$performer_count[dat$performer_counter==2]<-"Two"
+dat$performer_count[dat$performer_counter==3]<-"Three"
+dat$performer_count[dat$performer_counter>=4]<-"Four Plus"
+
+
+#Categorizing the genres
+dat$pop_genre <- grepl("pop", dat$genre, ignore.case = TRUE)
+dat$rock_genre <- grepl("rock", dat$genre, ignore.case = TRUE)
+dat$adult_genre <- grepl("adult standard", dat$genre, ignore.case = TRUE)
+dat$soul_genre <- grepl("soul", dat$genre, ignore.case = TRUE)
+dat$rap_genre <- grepl("rap", dat$genre, ignore.case = TRUE)
+dat$country_genre <- grepl("country", dat$genre, ignore.case = TRUE)
+dat$hiphop_genre <- grepl("hip hop", dat$genre, ignore.case = TRUE)
+dat$electro_genre <- grepl("electro", dat$genre, ignore.case = TRUE)
+dat$latin_genre <- grepl("latin", dat$genre, ignore.case = TRUE)
+dat$classic_genre <- grepl("classic", dat$genre, ignore.case = TRUE)
+dat$mellow_genre <- grepl("mellow", dat$genre, ignore.case = TRUE)
+dat$folk_genre <- grepl("folk", dat$genre, ignore.case = TRUE)
+dat$gold_genre <- grepl("gold", dat$genre, ignore.case = TRUE)
+dat$dance_genre <- grepl("dance", dat$genre, ignore.case = TRUE)
+dat$soft_genre <- grepl("soft", dat$genre, ignore.case = TRUE)
+dat$new_genre <- grepl("new", dat$genre, ignore.case = TRUE)
+dat$blues_genre <- grepl("blues", dat$genre, ignore.case = TRUE)
+dat$contemporary_genre <- grepl("contemporary", dat$genre, ignore.case = TRUE)
+dat$brill_genre <- grepl("brill", dat$genre, ignore.case = TRUE)
+dat$building_genre <- grepl("building", dat$genre, ignore.case = TRUE)
+
+
+
+
+#Categorizing song words
+dat$has_you <- grepl("you", dat$song, ignore.case = TRUE)
+dat$has_the <- grepl("the", dat$song, ignore.case = TRUE)
+dat$has_love <- grepl("love", dat$song, ignore.case = TRUE)
+dat$has_you <- grepl("me", dat$song, ignore.case = TRUE)
+dat$has_i <- grepl("i", dat$song, ignore.case = TRUE)
+dat$has_a <- grepl("a", dat$song, ignore.case = TRUE)
+dat$has_to <- grepl("to", dat$song, ignore.case = TRUE)
+dat$has_my <- grepl("my", dat$song, ignore.case = TRUE)
+dat$has_of <- grepl("of", dat$song, ignore.case = TRUE)
+dat$has_in <- grepl("in", dat$song, ignore.case = TRUE)
+dat$has_it <- grepl("it", dat$song, ignore.case = TRUE)
+dat$has_on <- grepl("on", dat$song, ignore.case = TRUE)
+dat$has_dont <- grepl("don't", dat$song, ignore.case = TRUE)
+dat$has_your <- grepl("your", dat$song, ignore.case = TRUE)
+dat$has_be <- grepl("be", dat$song, ignore.case = TRUE)
+dat$has_and <- grepl("and", dat$song, ignore.case = TRUE)
+dat$has_for <- grepl("for", dat$song, ignore.case = TRUE)
+dat$has_im <- grepl("i'm", dat$song, ignore.case = TRUE)
+dat$has_is <- grepl("is", dat$song, ignore.case = TRUE)
+dat$has_baby <- grepl("baby", dat$song, ignore.case = TRUE)
+dat$has_do <- grepl("do", dat$song, ignore.case = TRUE)
+dat$has_what <- grepl("what", dat$song, ignore.case = TRUE)
+dat$has_like <- grepl("like", dat$song, ignore.case = TRUE)
+dat$has_up <- grepl("up", dat$song, ignore.case = TRUE)
+dat$has_time <- grepl("time", dat$song, ignore.case = TRUE)
+
+
+#Categorizing performers
+dat$performer_the <- grepl("the", dat$performer, ignore.case = TRUE)
+dat$performer_featuring <- grepl("featuring", dat$performer, ignore.case = TRUE)
+dat$performer_john <- grepl("john", dat$performer, ignore.case = TRUE)
+dat$performer_lil <- grepl("lil", dat$performer, ignore.case = TRUE)
+dat$performer_and <- grepl("and", dat$performer, ignore.case = TRUE)
+dat$performer_bobby <- grepl("bobby", dat$performer, ignore.case = TRUE)
+dat$performer_band <- grepl("band", dat$performer, ignore.case = TRUE)
+dat$performer_brothers <- grepl("brothers", dat$performer, ignore.case = TRUE)
+dat$performer_cast <- grepl("cast", dat$performer, ignore.case = TRUE)
+dat$performer_glee <- grepl("glee", dat$performer, ignore.case = TRUE)
+dat$performer_jackson <- grepl("jackson", dat$performer, ignore.case = TRUE)
+dat$performer_brown <- grepl("brown", dat$performer, ignore.case = TRUE)
+dat$performer_james <- grepl("james", dat$performer, ignore.case = TRUE)
+dat$performer_of <- grepl("of", dat$performer, ignore.case = TRUE)
+
+#Converting booleans to categorical
+dat <- dat %>% 
+  mutate_if(is.logical, as.factor)
+
+dat$mode<-as.factor(dat$mode)
+```
+
+  
+```{r}
+#Creating track_minutes
+test<- test %>% mutate(track_minutes = track_duration / (1000*60))
+
+test$time_sig_cat <- character(length = nrow(test))
+test$time_sig_cat[test$time_signature == 4] <- "Four"
+test$time_sig_cat[test$time_signature == 3] <- "Three"
+test$time_sig_cat[test$time_signature %in% c(0, 1, 5)] <- "Other"
+
+test$key_cat <- character(length = nrow(test))
+test$key_cat[test$key == 0] <- "Zero"
+test$key_cat[test$key == 1] <- "One"
+test$key_cat[test$key == 2] <- "Two"
+test$key_cat[test$key == 3] <- "Three"
+test$key_cat[test$key == 4] <- "Four"
+test$key_cat[test$key == 5] <- "Five"
+test$key_cat[test$key == 6] <- "Six"
+test$key_cat[test$key == 7] <- "Seven"
+test$key_cat[test$key == 8] <- "Eight"
+test$key_cat[test$key == 9] <- "Nine"
+test$key_cat[test$key == 10] <- "Ten"
+test$key_cat[test$key == 11] <- "Eleven"
+
+#Taking the numbers of words in each song
+test$song1 <- gsub("\\([^()]*\\)", "", test$song)
+test$song_counter <- str_count(test$song1, "\\s+") + 1
+#Transforming the count to characters to make them categorical
+test$song_count[test$song_counter == 1] <- "One"
+test$song_count[test$song_counter == 2] <- "Two"
+test$song_count[test$song_counter == 3] <- "Three"
+test$song_count[test$song_counter == 4] <- "Four"
+test$song_count[test$song_counter == 5] <- "Five"
+test$song_count[test$song_counter == 6] <- "Six"
+test$song_count[test$song_counter == 7] <- "Seven"
+test$song_count[test$song_counter >= 8] <- "Eight Plus"
+
+#Taking the numbers of words in each performer
+test$performer_counter <- str_count(test$performer, "\\s+") + 1
+#Transforming the count to characters to make them categorical
+test$performer_count[test$performer_counter == 1] <- "One"
+test$performer_count[test$performer_counter == 2] <- "Two"
+test$performer_count[test$performer_counter == 3] <- "Three"
+test$performer_count[test$performer_counter >= 4] <- "Four Plus"
+
+#Categorizing the genres
+test$pop_genre <- grepl("pop", test$genre, ignore.case = TRUE)
+test$rock_genre <- grepl("rock", test$genre, ignore.case = TRUE)
+test$adult_genre <- grepl("adult standard", test$genre, ignore.case = TRUE)
+test$soul_genre <- grepl("soul", test$genre, ignore.case = TRUE)
+test$rap_genre <- grepl("rap", test$genre, ignore.case = TRUE)
+test$country_genre <- grepl("country", test$genre, ignore.case = TRUE)
+test$hiphop_genre <- grepl("hip hop", test$genre, ignore.case = TRUE)
+test$electro_genre <- grepl("electro", test$genre, ignore.case = TRUE)
+test$latin_genre <- grepl("latin", test$genre, ignore.case = TRUE)
+test$classic_genre <- grepl("classic", test$genre, ignore.case = TRUE)
+test$mellow_genre <- grepl("mellow", test$genre, ignore.case = TRUE)
+test$folk_genre <- grepl("folk", test$genre, ignore.case = TRUE)
+test$gold_genre <- grepl("gold", test$genre, ignore.case = TRUE)
+test$dance_genre <- grepl("dance", test$genre, ignore.case = TRUE)
+test$soft_genre <- grepl("soft", test$genre, ignore.case = TRUE)
+test$new_genre <- grepl("new", test$genre, ignore.case = TRUE)
+test$blues_genre <- grepl("blues", test$genre, ignore.case = TRUE)
+test$contemporary_genre <- grepl("contemporary", test$genre, ignore.case = TRUE)
+test$brill_genre <- grepl("brill", test$genre, ignore.case = TRUE)
+test$building_genre <- grepl("building", test$genre, ignore.case = TRUE)
+
+#Categorizing song words
+test$has_you <- grepl("you", test$song, ignore.case = TRUE)
+test$has_the <- grepl("the", test$song, ignore.case = TRUE)
+test$has_love <- grepl("love", test$song, ignore.case = TRUE)
+test$has_you <- grepl("me", test$song, ignore.case = TRUE)
+test$has_i <- grepl("i", test$song, ignore.case = TRUE)
+test$has_a <- grepl("a", test$song, ignore.case = TRUE)
+test$has_to <- grepl("to", test$song, ignore.case = TRUE)
+test$has_my <- grepl("my", test$song, ignore.case = TRUE)
+test$has_of <- grepl("of", test$song, ignore.case = TRUE)
+test$has_in <- grepl("in", test$song, ignore.case = TRUE)
+test$has_it <- grepl("it", test$song, ignore.case = TRUE)
+test$has_on <- grepl("on", test$song, ignore.case = TRUE)
+test$has_dont <- grepl("don't", test$song, ignore.case = TRUE)
+test$has_your <- grepl("your", test$song, ignore.case = TRUE)
+test$has_be <- grepl("be", test$song, ignore.case = TRUE)
+test$has_and <- grepl("and", test$song, ignore.case = TRUE)
+test$has_for <- grepl("for", test$song, ignore.case = TRUE)
+test$has_im <- grepl("i'm", test$song, ignore.case = TRUE)
+test$has_is <- grepl("is", test$song, ignore.case = TRUE)
+test$has_baby <- grepl("baby", test$song, ignore.case = TRUE)
+test$has_do <- grepl("do", test$song, ignore.case = TRUE)
+test$has_what <- grepl("what", test$song, ignore.case = TRUE)
+test$has_like <- grepl("like", test$song, ignore.case = TRUE)
+test$has_up <- grepl("up", test$song, ignore.case = TRUE)
+test$has_time <- grepl("time", test$song, ignore.case = TRUE)
+
+#Categorizing performers
+test$performer_the <- grepl("the", test$performer, ignore.case = TRUE)
+test$performer_featuring <- grepl("featuring", test$performer, ignore.case = TRUE)
+test$performer_john <- grepl("john", test$performer, ignore.case = TRUE)
+test$performer_lil <- grepl("lil", test$performer, ignore.case = TRUE)
+test$performer_and <- grepl("and", test$performer, ignore.case = TRUE)
+test$performer_bobby <- grepl("bobby", test$performer, ignore.case = TRUE)
+test$performer_band <- grepl("band", test$performer, ignore.case = TRUE)
+test$performer_brothers <- grepl("brothers", test$performer, ignore.case = TRUE)
+test$performer_cast <- grepl("cast", test$performer, ignore.case = TRUE)
+test$performer_glee <- grepl("glee", test$performer, ignore.case = TRUE)
+test$performer_jackson <- grepl("jackson", test$performer, ignore.case = TRUE)
+test$performer_brown <- grepl("brown", test$performer, ignore.case = TRUE)
+test$performer_james <- grepl("james", test$performer, ignore.case = TRUE)
+test$performer_of <- grepl("of", test$performer, ignore.case = TRUE)
+
+#Converting booleans to categorical
+test <- test %>%
+mutate_if(is.logical, as.factor)
+
+test$mode<-as.factor(test$mode)
+```
+
+For Boosting model
+```{r}
+dat$performer_counter<-as.factor(dat$performer_counter)
+dat$song_counter<-as.factor(dat$song_counter)
+dat$key<-as.factor(dat$key)
+dat$time_signature<-as.factor(dat$time_signature)
+
+test$performer_counter<-as.factor(test$performer_counter)
+test$song_counter<-as.factor(test$song_counter)
+test$key<-as.factor(test$key)
+test$time_signature<-as.factor(test$time_signature)
+```
+
+
+To check RMSE and tune the model we will use an smaller subset of data:
+
+```{r}
+set.seed(1031)
+train_index <- sample.split(dat$rating, SplitRatio = 0.70) 
+train1 <- dat[train_index,] 
+test1 <- dat[!train_index,]
+```
+
+```{r}
+set.seed(1031)
+train_index2 <- sample.split(test1$rating, SplitRatio = 0.80) 
+train2 <- test1[train_index2,] 
+test2 <- test1[!train_index2,] 
+```
+
+
+
+
+```{r}
+#Names needed for training:
+var_names <- paste(names(dat), collapse = "+")
+var_names
+```
+
+_randomForest Tuning/Training_
+
+```{r}
+cl <- makeCluster(detectCores())
+registerDoParallel(cl)
+
+set.seed(1031)
+tuned_forest_m <- randomForest(rating~ track_explicit+danceability+energy+loudness+mode+speechiness+acousticness+
+                                 instrumentalness+liveness+valence+tempo+track_minutes+time_sig_cat+key_cat+
+                                 song_count+performer_count+pop_genre+rock_genre+adult_genre+soul_genre+rap_genre+country_genre+hiphop_genre+electro_genre+latin_genre+classic_genre+mellow_genre+folk_genre+gold_genre+dance_genre+soft_genre+new_genre+has_you+has_the+has_love+has_i+has_a+has_to+has_my+has_of+has_in+has_it+has_on+has_dont+has_your+has_be+performer_the+performer_featuring+performer_john+performer_lil+performer_and+performer_bobby+blues_genre+contemporary_genre+brill_genre+building_genre+has_and+has_for+has_im+has_is+has_baby+has_do+has_what+has_like+has_up+has_time+performer_band+performer_brothers+performer_cast+performer_glee+performer_jackson+performer_brown+performer_james+performer_of,
+                      data = train2,
+                      mtry = 5,
+                      ntree = 300,
+                      allowParallel = TRUE,
+                      nodesize = 5,
+                      replace = FALSE,
+                      splitrule ="variance")
+
+stopCluster(cl)
+
+pred_tuned_forest_m <- predict(tuned_forest_m, newdata = test2)
+rmse_train_tuned_forest_m = sqrt(mean((pred_tuned_forest_m - test2$rating)^2)); rmse_train_tuned_forest_m
+
+```
+
+```{r}
+submissionFile_10test1 = data.frame (id = test1$id , rating = pred_tuned_forest_m)
+View(submissionFile_10test1[1:20,])
+```
+
+_Predicting WITH ACTUAL DATASET ("dat")_
+
+```{r}
+cl <- makeCluster(detectCores())
+registerDoParallel(cl)
+
+set.seed(1031)
+tuned_forest_m <- randomForest(rating~ track_explicit+danceability+energy+loudness+mode+speechiness+acousticness+
+                                 instrumentalness+liveness+valence+tempo+track_minutes+time_sig_cat+key_cat+
+                                 song_count+performer_count+pop_genre+rock_genre+adult_genre+soul_genre+rap_genre+country_genre+hiphop_genre+electro_genre+latin_genre+classic_genre+mellow_genre+folk_genre+gold_genre+dance_genre+soft_genre+new_genre+has_you+has_the+has_love+has_i+has_a+has_to+has_my+has_of+has_in+has_it+has_on+has_dont+has_your+has_be+performer_the+performer_featuring+performer_john+performer_lil+performer_and+performer_bobby+blues_genre+contemporary_genre+brill_genre+building_genre+has_and+has_for+has_im+has_is+has_baby+has_do+has_what+has_like+has_up+has_time+performer_band+performer_brothers+performer_cast+performer_glee+performer_jackson+performer_brown+performer_james+performer_of,
+                      data = dat,
+                      mtry = 5,
+                      ntree = 300,
+                      allowParallel = TRUE,
+                      nodesize = 5,
+                      replace = FALSE,
+                      splitrule ="variance")
+
+stopCluster(cl) 
+```
+```{r}
+pred_tuned_forest_m <- predict(tuned_forest_m,  newdata = test )
+
+```
+
+```{r}
+submissionFile_11a = data.frame (id = test$id , rating = pred_tuned_forest_m)
+View(submissionFile_11a[1:20,])
+```
+
+
+
+
+```{r}
+write.csv( submissionFile_11a , 'yosuecanaviri_submission_11a.csv', row.names =F)
+```

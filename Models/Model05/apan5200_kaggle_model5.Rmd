@@ -1,0 +1,102 @@
+---
+title: "apan5200_kaggle_model1"
+author: "Yosue Canaviri"
+date: "2023-03-10"
+output: html_document
+---
+```{r}
+library(tidyverse)
+library(dplyr)
+```
+```{r}
+
+songs <-read.csv("analysisData.csv")
+scoringData <-read.csv("scoringData.csv")
+```
+
+```{r}
+dat <-read.csv("analysisData.csv") # Training set
+test <-read.csv("scoringData.csv") # Testing Set
+```
+
+Saving clean data:
+```{r}
+clean_dat <-read.csv("analysisData.csv") # Training set
+clean_test <-read.csv("scoringData.csv") # Testing Set
+
+#__What is track_duration__ Miliseconds
+
+summary(dat$track_duration)
+
+#Converting time to minutes.
+summary(dat$track_duration/(1000*60))
+
+#Mutating data to minutes:
+dat<- dat%>%mutate(track_minutes=track_duration/(1000*60))
+
+#Converting the negative _ratings_ to zero ratings:
+
+dat$rating<-pmax(0,dat$rating)
+
+#__What happens if the testing data has a categorical level that is not in the training data?__
+#Linear regression model creates indicator/inary/dummy variables for the levels of a categorical input. These are relative #toa base case.
+
+#You will get an error/warning that says "new levels" if the testing set has categories not in the training set.
+
+#__How should we handle this problem?__
+#We could aggregate the categories
+
+dat$time_sig_cat<- character(length= nrow (dat))
+dat$time_sig_cat[dat$time_signature==4]<-"Four"
+dat$time_sig_cat[dat$time_signature==3]<-"Three"
+dat$time_sig_cat[dat$time_signature %in% c(0,1,5)]<-"Other"
+```
+
+```{r}
+#Mutating data to minutes:
+test<- test%>%mutate(track_minutes=track_duration/(1000*60))
+
+#Converting the negative _ratings_ to zero ratings:
+
+
+#__What happens if the testing data has a categorical level that is not in the training data?__
+#Linear regression model creates indicator/inary/dummy variables for the levels of a categorical input. These are relative #toa base case.
+
+#You will get an error/warning that says "new levels" if the testing set has categories not in the training set.
+
+#__How should we handle this problem?__
+#We could aggregate the categories
+
+test$time_sig_cat<- character(length= nrow (test))
+test$time_sig_cat[test$time_signature==4]<-"Four"
+test$time_sig_cat[test$time_signature==3]<-"Three"
+test$time_sig_cat[test$time_signature %in% c(0,1,5)]<-"Other"
+```
+
+
+```{r}
+library(caret)
+split5 = createDataPartition(y = dat$rating, p = 0.80, list = F,groups = 5)
+train5 = dat[split5,]
+test5 = dat[-split5,]
+```
+
+
+```{r}
+variables1<- dat[, "track_explicit":"time_sig_cat"]
+```
+```{r}
+library(rpart); library(rpart.plot)
+tree5 = rpart(rating~track_explicit+key+mode+valence + track_duration+ danceability + energy + loudness + speechiness + acousticness + instrumentalness +liveness+tempo+time_signature,data = train5, method = 'anova')
+pred5 = predict(tree5,newdata=test)
+```
+
+```{r}
+submissionFile5 = data.frame (id = test$id , rating = pred5)
+write.csv( submissionFile5 , 'yosuecanaviri_submission5.csv', row.names =F)
+```
+
+```{r}
+View(submissionFile5[1:20,])
+```
+

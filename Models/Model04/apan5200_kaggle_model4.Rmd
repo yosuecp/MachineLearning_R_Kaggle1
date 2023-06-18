@@ -1,0 +1,48 @@
+---
+title: "apan5200_kaggle_model1"
+author: "Yosue Canaviri"
+date: "2023-03-10"
+output: html_document
+---
+```{r}
+library(tidyverse)
+library(dplyr)
+```
+```{r}
+
+songs <-read.csv("analysisData.csv")
+scoringData <-read.csv("scoringData.csv")
+```
+
+
+```{r}
+library(caret)
+split4 = createDataPartition(y = songs$rating, p = 0.75, list = F,groups = 10)
+train4 = songs[split4,]
+test4 = songs[-split4,]
+```
+
+
+```{r}
+library(rpart); library(rpart.plot)
+tree4 = rpart(rating~track_duration+ danceability + energy + loudness + speechiness + acousticness + instrumentalness +liveness+tempo+time_signature,data = train4, method = 'anova')
+pred4 = predict(tree4,newdata=scoringData)
+```
+
+```{r}
+submissionFile4 = data.frame (id = scoringData$id , rating = pred4)
+write.csv( submissionFile4 , 'yosuecanaviri_submission4.csv', row.names =F)
+```
+
+```{r}
+View(submissionFile4[1:20,])
+```
+
+```{r}
+library(glmnet)
+x_1 = model.matrix(rating~.-1,data=songs)
+y_1 = songs$rating
+cv_lasso = cv.glmnet(x = x_1, 
+                     y = y_1, 
+                     alpha = 1,
+                     type.measure = 'mse')

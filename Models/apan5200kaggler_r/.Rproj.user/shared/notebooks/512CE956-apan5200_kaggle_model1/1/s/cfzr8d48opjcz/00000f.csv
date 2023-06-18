@@ -1,0 +1,2 @@
+"0","submissionFile = data.frame (id = scoringData$id , rating = pred)"
+"0","write.csv( submissionFile , 'yosuecanaviri_submission1.csv', row.names =F)"

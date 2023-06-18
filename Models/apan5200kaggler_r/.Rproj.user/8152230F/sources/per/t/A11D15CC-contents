@@ -1,0 +1,118 @@
+---
+title: "apan5300hw3"
+author: "Yosue Canaviri"
+date: "2023-02-28"
+output: html_document
+---
+
+```{r, include=FALSE}
+library(tidyverse)
+library(data.table)
+library(ggplot2)
+exercise<- read.csv("exercise application user data.csv")
+```
+
+### Question 1 : 4.73
+
+```{r}
+exercise_usa = exercise%>%filter(Country == "USA")
+
+mean(exercise_usa$Weekly.Exercise.Sessions)
+```
+
+###Question 2: No, because users from the USA did not show a large decrease in the average value relative to other users.
+
+```{r}
+exercise_nusa= exercise%>%filter(Country != "USA")
+
+mean(exercise_nusa$Weekly.Exercise.Sessions)
+```
+### Question 3: p-value = 0.04728
+Do t-test
+
+```{r}
+
+t_test1 <- t.test(x = exercise[Country != "USA", Weekly.Exercise.Sessions], y = exercise[Country == "USA", Weekly.Exercise.Sessions], mu = 0, alternative = "greater")
+
+t_test1
+```
+
+###Question 6:
+
+```{r}
+library(dplyr)
+library(tidyr)
+totaln_country<-exercise%>%group_by(Country)%>%summarise(total_n=sum(n()))
+
+proportion_n <-exercise%>%group_by(Country,Age.Group)%>%summarise(
+  total_n= sum(n()))
+```
+```{r}
+q6_percentage <- question6table %>%
+  group_by(Age.Group, Country) %>%
+  summarize(user_percentage = user_count/sum(user_count)*100) %>%
+  ungroup() %>%
+  mutate(user_percentage = round(user_percentage, 1))
+
+```
+
+```{r}
+library(scales)
+tableq6c<- left_join(
+  proportion_n,
+  totaln_country,
+  by = "Country",
+
+)
+```
+
+```{r}
+
+tableq6c <-tableq6c%>%mutate(percent_by_country = percent(total_n.x/total_n.y,accuracy=0.1))%>%select(Country,Age.Group,percent_by_country)
+```
+
+```{r}
+table6d<-tableq6c%>%pivot_wider(names_from = Country, values_from = percent_by_country)
+```
+
+### Question 7
+
+### Question 10: ChiSq test
+```{r}
+q10tablea<-proportion_n%>%pivot_wider(names_from = Country, values_from = total_n)
+View(q10tablea)
+```
+
+```{r}
+chisq.test(q10tablea[2:4])
+```
+
+### Question 12:
+The managers are interested in whether users from the USA tend to log in as often as users from the other countries. We also want to take differences in weekly exercise sessions and age groups into account. (Paid Coaching status is related to a separate goal, so we won’t include it here.) Build a model that will show how much more or less often the users from the USA sign in. Display relevant information about the model. Then provide a short interpretation (2-4 sentences) about your findings.
+```{r}
+model12 <- lm(Daily.Logins ~ Country + Weekly.Exercise.Sessions + Age.Group, data = exercise)
+summary(model12)
+
+```
+
+### Question 13:
+
+```{r}
+question13 <- table(exercise$Country, exercise$Paid.Coaching)
+
+question13
+```
+```{r}
+chisq.test(question13)
+```
+
+### Question 14:
+
+```{r}
+question14model<-glm(Paid.Coaching ~ Country + Age.Group + Weekly.Exercise.Sessions + Daily.Logins, data = exercise, family = "binomial")
+```
+```{r}
+odds_ratio14 <- exp(coef(question14model)["CountryUSA"])
+odds_ratio14
+summary(question14model)
+```

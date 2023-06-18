@@ -1,0 +1,107 @@
+---
+title: "apan5200kaggle1"
+author: "Yosue Canaviri"
+date: "2023-03-09"
+output: html_document
+---
+
+```{r}
+library(tidyverse)
+library(dplyr)
+
+```
+
+```{r}
+dat <-read.csv("analysisData.csv") # Training set
+test <-read.csv("scoringData.csv") # Testing Set
+```
+
+Saving clean data:
+```{r}
+clean_dat <-read.csv("analysisData.csv") # Training set
+clean_test <-read.csv("scoringData.csv") # Testing Set
+
+#__What is track_duration__ Miliseconds
+
+#Mutating data to minutes:
+dat<- dat%>%mutate(track_minutes=track_duration/(1000*60))
+
+#Converting the negative _ratings_ to zero ratings:
+
+dat$rating<-pmax(0,dat$rating)
+
+#__What happens if the testing data has a categorical level that is not in the training data?__
+#Linear regression model creates indicator/inary/dummy variables for the levels of a categorical input. These are relative #toa base case.
+
+#You will get an error/warning that says "new levels" if the testing set has categories not in the training set.
+
+#__How should we handle this problem?__
+#We could aggregate the categories
+
+dat$time_sig_cat<- character(length= nrow (dat))
+dat$time_sig_cat[dat$time_signature==4]<-"Four"
+dat$time_sig_cat[dat$time_signature==3]<-"Three"
+dat$time_sig_cat[dat$time_signature %in% c(0,1,5)]<-"Other"
+```
+  
+```{r}
+#Mutating data to minutes:
+test<- test%>%mutate(track_minutes=track_duration/(1000*60))
+
+#Converting the negative _ratings_ to zero ratings:
+
+
+#__What happens if the testing data has a categorical level that is not in the training data?__
+#Linear regression model creates indicator/inary/dummy variables for the levels of a categorical input. These are relative #toa base case.
+
+#You will get an error/warning that says "new levels" if the testing set has categories not in the training set.
+
+#__How should we handle this problem?__
+#We could aggregate the categories
+
+test$time_sig_cat<- character(length= nrow (test))
+test$time_sig_cat[test$time_signature==4]<-"Four"
+test$time_sig_cat[test$time_signature==3]<-"Three"
+test$time_sig_cat[test$time_signature %in% c(0,1,5)]<-"Other"
+```
+
+```{r}
+library(rpart); library(rpart.plot)
+
+tree6 = rpart( rating~ danceability + energy + loudness + speechiness + acousticness + instrumentalness +liveness+tempo+time_signature+track_explicit+key+mode+valence + track_minutes, data=dat, method = 'anova',
+            
+               control = rpart.control(cp = 0.001)
+               )
+```
+
+
+```{r}
+rpart.plot(tree6)
+```
+_THIS IS for MODEL 7_
+
+```{r}
+tree6_b = rpart( rating~ track_minutes + track_explicit + loudness + acousticness + danceability +
+                 energy + valence , data=dat, method = 'anova',
+                 control = rpart.control(cp = 0.001)
+               )
+```
+
+```{r}
+pred6=predict(tree6,newdata=test)
+```
+
+```{r}
+rmse6 = sqrt(mean((pred6 - dat$rating)^2)); rmse6
+```
+
+Submission for Model 6
+
+```{r}
+submissionFile6 = data.frame (id = test$id , rating = pred6)
+write.csv( submissionFile6 , 'yosuecanaviri_submission6.csv', row.names =F)
+```
+
+```{r}
+View(submissionFile6[1:20,])
+```

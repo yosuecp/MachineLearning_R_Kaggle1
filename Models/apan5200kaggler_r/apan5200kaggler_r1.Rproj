@@ -1,0 +1,44 @@
+---
+title: "apan5200kaggle1"
+author: "Yosue Canaviri"
+date: "2023-03-09"
+output: html_document
+---
+
+```{r}
+library(tidyverse)
+library(dplyr)
+
+```
+
+```{r}
+dat <-read.csv("analysisData.csv") # Training set
+test <-read.csv("scoringData.csv") # Testing Set
+```
+
+Saving clean data:
+```{r}
+clean_dat <-read.csv("analysisData.csv") # Training set
+clean_test <-read.csv("scoringData.csv") # Testing Set
+```
+__What is track_duration__ Miliseconds
+```{r}
+summary(dat$track_duration)
+```
+Converting time to minutes.
+```{r}
+summary(dat$track_duration/(1000*60))
+```
+
+Mutating data to minutes:
+```{r}
+dat<- dat%>%mutate(track_minutes=track_duration/(1000*60))
+```
+
+### Any modifications made on the _training_ set should be applied in the way to the _testing_ set:
+
+Mutating data to minutes:
+```{r}
+test<- test%>%mutate(track_minutes=track_duration/(1000*60))
+```
+

@@ -1,0 +1,43 @@
+---
+title: "apan5200_kaggle_model1"
+author: "Yosue Canaviri"
+date: "2023-03-10"
+output: html_document
+---
+```{r}
+library(tidyverse)
+library(dplyr)
+```
+```{r}
+
+songs <-read.csv("analysisData.csv")
+scoringData <-read.csv("scoringData.csv")
+
+model3=lm(rating~danceability + energy + loudness + speechiness + acousticness + instrumentalness +liveness+tempo+time_signature,songs)
+pred3=predict(model3,newdata=scoringData)
+model3
+```
+
+```{r}
+submissionFile3 = data.frame (id = scoringData$id , rating = pred3)
+write.csv( submissionFile , 'yosuecanaviri_submission3.csv', row.names =F)
+```
+
+```{r}
+View(submissionFile[1:20,])
+```
+
+```{r}
+library(glmnet)
+x_1 = model.matrix(rating~ danceability + energy + loudness + speechiness + acousticness + instrumentalness +liveness+tempo+time_signature,data=songs)
+y_1 = songs$rating
+cv_lasso = cv.glmnet(x = x_1, 
+                     y = y_1, 
+                     alpha = 1,
+                     type.measure = 'mse')
+```
+
+```{r}
+coef(cv_lasso, s = cv_lasso$lambda.min) %>%
+  round(4)
+```

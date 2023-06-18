@@ -1,0 +1,382 @@
+---
+title: "apan5200kaggle1"
+author: "Yosue Canaviri"
+date: "2023-03-09"
+output: html_document
+---
+
+```{r}
+library(tidyverse)
+library(dplyr)
+library(tidyr)
+library(caret)
+library(randomForest)
+library(rpart)
+library(rpart.plot)
+library(doParallel)
+library(foreach)
+library(writexl)
+library(stringr)
+library(caTools)
+library(ranger)
+library(doParallel)
+```
+
+
+
+```{r}
+dat <-read.csv("analysisData.csv") # Training set
+test <-read.csv("scoringData.csv") # Testing Set
+```
+
+
+```{r}
+#Creating track_minutes
+dat<- dat%>%mutate(track_minutes=track_duration/(1000*60))
+
+
+dat$time_sig_cat<- character(length= nrow (dat))
+dat$time_sig_cat[dat$time_signature==4]<-"Four"
+dat$time_sig_cat[dat$time_signature==3]<-"Three"
+dat$time_sig_cat[dat$time_signature %in% c(0,1,5)]<-"Other"
+
+dat$key_cat<- character(length= nrow (dat))
+dat$key_cat[dat$key==0]<-"Zero"
+dat$key_cat[dat$key==1]<-"One"
+dat$key_cat[dat$key==2]<-"Two"
+dat$key_cat[dat$key==3]<-"Three"
+dat$key_cat[dat$key==4]<-"Four"
+dat$key_cat[dat$key==5]<-"Five"
+dat$key_cat[dat$key==6]<-"Six"
+dat$key_cat[dat$key==7]<-"Seven"
+dat$key_cat[dat$key==8]<-"Eight"
+dat$key_cat[dat$key==9]<-"Nine"
+dat$key_cat[dat$key==10]<-"Ten"
+dat$key_cat[dat$key==11]<-"Eleven"
+
+#Taking the numbers of words in each song
+dat$song1 <- gsub("\\([^()]*\\)", "", dat$song)
+dat$song_counter <- str_count(dat$song1, "\\s+") + 1
+#Transforming the count to characters to make them categorical
+dat$song_count[dat$song_counter==1]<-"One"
+dat$song_count[dat$song_counter==2]<-"Two"
+dat$song_count[dat$song_counter==3]<-"Three"
+dat$song_count[dat$song_counter==4]<-"Four"
+dat$song_count[dat$song_counter==5]<-"Five"
+dat$song_count[dat$song_counter==6]<-"Six"
+dat$song_count[dat$song_counter==7]<-"Seven"
+dat$song_count[dat$song_counter >=8]<-"Eight Plus"
+
+#Taking the numbers of words in each performer
+dat$performer_counter <- str_count(dat$performer, "\\s+") + 1
+#Transforming the count to characters to make them categorical
+dat$performer_count[dat$performer_counter==1]<-"One"
+dat$performer_count[dat$performer_counter==2]<-"Two"
+dat$performer_count[dat$performer_counter==3]<-"Three"
+dat$performer_count[dat$performer_counter>=4]<-"Four Plus"
+
+
+#Categorizing the genres
+dat$pop_genre <- grepl("pop", dat$genre, ignore.case = TRUE)
+dat$rock_genre <- grepl("rock", dat$genre, ignore.case = TRUE)
+dat$adult_genre <- grepl("adult standard", dat$genre, ignore.case = TRUE)
+dat$soul_genre <- grepl("soul", dat$genre, ignore.case = TRUE)
+dat$rap_genre <- grepl("rap", dat$genre, ignore.case = TRUE)
+dat$country_genre <- grepl("country", dat$genre, ignore.case = TRUE)
+dat$hiphop_genre <- grepl("hip hop", dat$genre, ignore.case = TRUE)
+dat$electro_genre <- grepl("electro", dat$genre, ignore.case = TRUE)
+dat$latin_genre <- grepl("latin", dat$genre, ignore.case = TRUE)
+
+dat$mode<-as.factor(dat$mode)
+
+#Converting booleans to categorical
+dat <- dat %>% 
+  mutate_if(is.logical, as.factor)
+```
+
+  
+```{r}
+#Creating track_minutes
+test<- test%>%mutate(track_minutes=track_duration/(1000*60))
+
+
+test$time_sig_cat<- character(length= nrow (test))
+test$time_sig_cat[test$time_signature==4]<-"Four"
+test$time_sig_cat[test$time_signature==3]<-"Three"
+test$time_sig_cat[test$time_signature %in% c(0,1,5)]<-"Other"
+
+test$key_cat<- character(length= nrow (test))
+test$key_cat[test$key==0]<-"Zero"
+test$key_cat[test$key==1]<-"One"
+test$key_cat[test$key==2]<-"Two"
+test$key_cat[test$key==3]<-"Three"
+test$key_cat[test$key==4]<-"Four"
+test$key_cat[test$key==5]<-"Five"
+test$key_cat[test$key==6]<-"Six"
+test$key_cat[test$key==7]<-"Seven"
+test$key_cat[test$key==8]<-"Eight"
+test$key_cat[test$key==9]<-"Nine"
+test$key_cat[test$key==10]<-"Ten"
+test$key_cat[test$key==11]<-"Eleven"
+
+#Taking the numbers of words in each song
+test$song1 <- gsub("\\([^()]*\\)", "", test$song)
+test$song_counter <- str_count(test$song1, "\\s+") + 1
+#Transforming the count to characters to make them categorical
+test$song_count[test$song_counter==1]<-"One"
+test$song_count[test$song_counter==2]<-"Two"
+test$song_count[test$song_counter==3]<-"Three"
+test$song_count[test$song_counter==4]<-"Four"
+test$song_count[test$song_counter==5]<-"Five"
+test$song_count[test$song_counter==6]<-"Six"
+test$song_count[test$song_counter==7]<-"Seven"
+test$song_count[test$song_counter >=8]<-"Eight Plus"
+
+#Taking the numbers of words in each performer
+test$performer_counter <- str_count(test$performer, "\\s+") + 1
+#Transforming the count to characters to make them categorical
+test$performer_count[test$performer_counter==1]<-"One"
+test$performer_count[test$performer_counter==2]<-"Two"
+test$performer_count[test$performer_counter==3]<-"Three"
+test$performer_count[test$performer_counter>=4]<-"Four Plus"
+
+
+#Categorizing the genres
+test$pop_genre <- grepl("pop", test$genre, ignore.case = TRUE) & !grepl("hip hop", test$genre, ignore.case = TRUE)
+test$rock_genre <- grepl("rock", test$genre, ignore.case = TRUE)
+test$adult_genre <- grepl("adult standard", test$genre, ignore.case = TRUE)
+test$soul_genre <- grepl("soul", test$genre, ignore.case = TRUE)
+test$rap_genre <- grepl("rap", test$genre, ignore.case = TRUE)
+test$country_genre <- grepl("country", test$genre, ignore.case = TRUE)
+test$hiphop_genre <- grepl("hip hop", test$genre, ignore.case = TRUE)
+test$electro_genre <- grepl("electro", test$genre, ignore.case = TRUE)
+test$latin_genre <- grepl("latin", test$genre, ignore.case = TRUE)
+
+#Converting booleans to categorical
+test$mode<-as.factor(test$mode)
+
+test <- test %>% 
+  mutate_if(is.logical, as.factor)
+```
+
+For Boosting model
+```{r}
+dat$performer_counter<-as.factor(dat$performer_counter)
+dat$song_counter<-as.factor(dat$song_counter)
+dat$key<-as.factor(dat$key)
+dat$time_signature<-as.factor(dat$time_signature)
+
+test$performer_counter<-as.factor(test$performer_counter)
+test$song_counter<-as.factor(test$song_counter)
+test$key<-as.factor(test$key)
+test$time_signature<-as.factor(test$time_signature)
+```
+
+
+To check results we will use index
+```{r}
+set.seed(1010) 
+train_index <- sample.split(dat$rating, SplitRatio = 0.8) 
+train1 <- dat[train_index,] 
+test1 <- dat[!train_index,]
+```
+
+Needed names:
+
+track_explicit + danceability + energy + loudness + mode + speechiness + acousticness + instrumentalness + liveness + valence + tempo +  track_minutes + time_sig_cat + key_cat + song_count +  performer_count + pop_genre + rock_genre + adult_genre + soul_genre + rap_genre + country_genre + hiphop_genre + electro_genre + latin_genre
+
+Names needed for training:
+
+id,performer,song,genre,track_duration,track_explicit,danceability,energy,key,loudness,mode,speechiness,acousticness,instrumentalness,liveness,valence,tempo,time_signature,rating,track_minutes,time_sig_cat,key_cat,song1,song_counter,song_count,performer_counter,performer_count,pop_genre,rock_genre,adult_genre,soul
+
+
+_randomForest_
+
+```{r}
+cl <- makeCluster(detectCores())
+registerDoParallel(cl)
+
+set.seed(1031)
+tuned_forest_m <- randomForest(rating~ track_explicit + danceability + energy + loudness + mode + speechiness + acousticness + instrumentalness + liveness + valence + tempo +  track_minutes + time_sig_cat + key_cat + song_count +  performer_count + pop_genre + rock_genre + adult_genre + soul_genre + rap_genre + country_genre + hiphop_genre + electro_genre + latin_genre,
+                      data = train1,
+                      mtry = 3, 
+                      ntree = 300,
+                      allowParallel = TRUE,
+                      nodesize = 5,
+                      replace = FALSE,
+                      splitrule ="variance")
+
+stopCluster(cl)
+
+pred_tuned_forest_m <- predict(tuned_forest_m, newdata = test1)
+rmse_train_tuned_forest_m = sqrt(mean((pred_tuned_forest_m - test1$rating)^2)); rmse_train_tuned_forest_m
+
+```
+
+```{r}
+submissionFile_10test1 = data.frame (id = test1$id , rating = pred_tuned_forest_m)
+View(submissionFile_10test1[1:20,])
+```
+
+
+```{r}
+cl <- makeCluster(detectCores())
+registerDoParallel(cl)
+
+
+set.seed(1031)
+forest_ranger = ranger(rating~ track_explicit + danceability + energy + loudness + mode + speechiness + acousticness + instrumentalness + liveness + valence + tempo +  track_minutes + time_signature + key + song_counter +  performer_counter + pop_genre + rock_genre + adult_genre + soul_genre + rap_genre + country_genre + hiphop_genre + electro_genre + latin_genre,
+               data = train1,
+               mtry=3,
+               min.node.size = 5,
+               splitrule= "variance",
+               num.trees= 500,
+               allowParallel = TRUE,
+               replace = FALSE)
+
+stopCluster(cl)
+
+pred_forest_ranger = predict(forest_ranger, data = test1, num.trees = 300)
+rmse_forest_ranger = sqrt(mean((pred_forest_ranger$predictions-test1$rating)^2)); rmse_forest_ranger
+
+```
+
+```{r}
+submissionFile_10test2 = data.frame (id = test1$id , rating = pred_forest_ranger$prediction)
+View(submissionFile_10test2[1:20,])
+```
+
+
+_Boosting model_
+
+
+```{r}
+library(gbm)
+set.seed(1031)
+boost = gbm(rating~ track_explicit + danceability + energy + loudness + mode + speechiness + acousticness + instrumentalness + liveness + valence + tempo +  track_minutes  +  pop_genre + rock_genre + adult_genre + soul_genre + rap_genre + country_genre + hiphop_genre + electro_genre + latin_genre+
+              performer_counter+song_counter+key+time_signature,
+            data=train1,
+            distribution="gaussian",
+            n.trees = 300,
+            interaction.depth = 12,
+            shrinkage = 0.051,
+            n.minobsinnode=2)
+
+pred_boost = predict(boost, newdata = test1, n.trees = 200)
+rmse_boost_train = sqrt(mean((pred_boost-test1$rating)^2)); rmse_boost_train
+```
+
+```{r}
+submissionFile_10test3 = data.frame (id = test1$id , rating = pred_boost)
+View(submissionFile_10test3[1:20,])
+```
+
+
+```{r}
+joined_df1 <- left_join(submissionFile_10test2, submissionFile_10test3, by = "id")
+
+submissionFile_ensemble <- joined_df1 %>%
+  mutate(rating1 = (rating.x+ rating.y)/2) %>% select(id, rating=rating1)
+
+rmse_ensemble = sqrt(mean((submissionFile_ensemble$rating-test1$rating)^2)); rmse_ensemble
+
+```
+_REDO WITH ACTUAL DATA_
+
+```{r}
+cl <- makeCluster(detectCores())
+registerDoParallel(cl)
+
+set.seed(1031)
+tuned_forest_m <- randomForest(rating ~ track_explicit + danceability + energy + loudness + mode + speechiness + acousticness + instrumentalness + liveness + valence + tempo +  track_minutes + time_sig_cat + key_cat + song_count +  performer_count + pop_genre + rock_genre + adult_genre + soul_genre + rap_genre + country_genre + hiphop_genre + electro_genre + latin_genre,
+                      data = dat,
+                      mtry = 3, 
+                      ntree = 300,
+                      allowParallel = TRUE,
+                      nodesize = 5,
+                      replace = FALSE,
+                      splitrule ="variance")
+
+stopCluster(cl)
+```
+```{r}
+pred_tuned_forest_m <- predict(tuned_forest_m,  newdata = test )
+
+```
+
+```{r}
+submissionFile_10a = data.frame (id = test$id , rating = pred_tuned_forest_m)
+View(submissionFile_10a[1:20,])
+```
+
+
+```{r}
+cl <- makeCluster(detectCores())
+registerDoParallel(cl)
+
+
+set.seed(1031)
+forest_ranger = ranger(rating~ track_explicit + danceability + energy + loudness + mode + speechiness + acousticness + instrumentalness + liveness + valence + tempo +  track_minutes + time_signature + key + song_counter +  performer_counter + pop_genre + rock_genre + adult_genre + soul_genre + rap_genre + country_genre + hiphop_genre + electro_genre + latin_genre,
+               data = dat,
+               mtry=3,
+               min.node.size = 5,
+               splitrule= "variance",
+               num.trees= 500,
+               allowParallel = TRUE,
+               replace = FALSE)
+
+stopCluster(cl)
+
+```
+```{r}
+pred_forest_ranger = predict(forest_ranger, data = test, num.trees = 300)
+rmse_forest_ranger = sqrt(mean((pred_forest_ranger$predictions-test$rating)^2)); rmse_forest_ranger
+
+```
+
+```{r}
+submissionFile_10b = data.frame (id = test$id , rating = pred_forest_ranger$prediction)
+View(submissionFile_10b[1:20,])
+```
+
+
+_Boosting model_
+
+
+```{r}
+library(gbm)
+set.seed(1031)
+boost = gbm(rating~ track_explicit + danceability + energy + loudness + mode + speechiness + acousticness + instrumentalness + liveness + valence + tempo +  track_minutes  +  pop_genre + rock_genre + adult_genre + soul_genre + rap_genre + country_genre + hiphop_genre + electro_genre + latin_genre+
+              performer_counter+song_counter+key+time_signature,
+            data=dat,
+            distribution="gaussian",
+            n.trees = 300,
+            interaction.depth = 12,
+            shrinkage = 0.051,
+            n.minobsinnode=2)
+
+pred_boost = predict(boost, newdata = test, n.trees = 200)
+rmse_boost_train = sqrt(mean((pred_boost-test1$rating)^2)); rmse_boost_train
+```
+
+```{r}
+submissionFile_10c = data.frame (id = test$id , rating = pred_boost)
+View(submissionFile_10c[1:20,])
+```
+
+
+```{r}
+joined_df1 <- left_join(submissionFile_10a, submissionFile_10c, by = "id")
+
+submissionFile_10ac <- joined_df1 %>%
+  mutate(rating1 = (rating.x+ rating.y)/2) %>% select(id, rating=rating1)
+
+```
+
+
+```{r}
+write.csv( submissionFile_10a , 'yosuecanaviri_submission_10a.csv', row.names =F)
+write.csv( submissionFile_10b , 'yosuecanaviri_submission_10b.csv', row.names =F)
+write.csv( submissionFile_10ac , 'yosuecanaviri_submission_10ac.csv', row.names =F)
+
+```

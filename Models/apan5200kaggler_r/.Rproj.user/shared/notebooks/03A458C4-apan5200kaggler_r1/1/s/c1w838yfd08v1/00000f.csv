@@ -1,0 +1,6 @@
+"0",""
+"0","songs <-read.csv(""analysisData.csv"")"
+"0","scoringData <-read.csv(""scoringData.csv"")"
+"0",""
+"0","model=lm(rating~tempo+time_signature,songs)"
+"0","pred=predict(model,newdata=scoringData)"
